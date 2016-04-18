@@ -15,7 +15,7 @@ public class Ticket implements Serializable {
         this.available = true;
     }
 
-    private Long id;
+    private final Long id;
     private Boolean available;
     private Long customerReference;
 

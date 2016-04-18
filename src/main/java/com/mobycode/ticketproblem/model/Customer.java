@@ -14,6 +14,6 @@ public class Customer implements Serializable {
         this.id = id;
     }
 
-    private Long id;
+    private final Long id;
     private String displayName;
 }

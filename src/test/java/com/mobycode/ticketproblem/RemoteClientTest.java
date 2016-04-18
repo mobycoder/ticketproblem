@@ -21,20 +21,16 @@ import org.junit.Test;
 import org.springframework.http.MediaType;
 import org.springframework.util.StopWatch;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.*;
 import java.util.stream.LongStream;
 
-import static org.junit.Assert.assertTrue;
-
 @Slf4j
-@Ignore
+@Ignore  //remove or comment this to activate these tests
 public class RemoteClientTest {
 
     private static ProducerTemplate producerTemplate;
     private static CamelContext camelContext;
-    private Long ticketId = 500l;
+    private final Long ticketId = 500L;
     private static Ignite ignite;
     private IgniteCache<Long, Ticket> ticketMap;
     private IgniteCache<Long, Customer> customerMap;
@@ -43,16 +39,17 @@ public class RemoteClientTest {
     //number of threads to run for parallel tests
     private static final int NUMBER_OF_THREADS = 6;
 
-    //executor and completion service for parallel processing
-    private Executor executor = Executors.newFixedThreadPool(NUMBER_OF_THREADS);
+    //executor for parallel processing
+    private final Executor executor = Executors.newFixedThreadPool(NUMBER_OF_THREADS);
     //completion service
-    private CompletionService<BookingResult> completionService = new ExecutorCompletionService<>(executor);
+    private final CompletionService<BookingResult> completionService = new ExecutorCompletionService<>(executor);
 
     @BeforeClass
     public static void setupOnce() throws Exception {
         Ignition.setClientMode(true);
         ignite = Ignition.start();
         camelContext = new DefaultCamelContext();
+        camelContext.setAllowUseOriginalMessage(false);
         camelContext.addRoutes(createRoutes());
         camelContext.start();
         producerTemplate = camelContext.createProducerTemplate();
@@ -71,11 +68,13 @@ public class RemoteClientTest {
         StopWatch stopWatch = new StopWatch("How long for "+ numberOfCustomers +" customers to attempt to book a ticket");
         stopWatch.start("all customers attempt to book one ticket in parallel using a HTTP/JSON service");
         ResultRecorder recorder = new ResultRecorder();
-        List<Future<BookingResult>> futureBookingResults = new ArrayList<>();
         LongStream.rangeClosed(1, numberOfCustomers).forEach(entry -> {
-            Callable<BookingResult> bookingTask = () ->
-                    producerTemplate.requestBody("direct:bookTicketOverHttp", new BookingRequest(ticketId, entry), BookingResult.class);
-                    futureBookingResults.add(completionService.submit(bookingTask));
+                    completionService.submit(
+                            () -> producerTemplate.requestBody(
+                                    "direct:bookTicketOverHttp",
+                                    new BookingRequest(ticketId, entry),
+                                    BookingResult.class)
+                    );
         });
         LongStream.rangeClosed(1, numberOfCustomers)
                 .forEach(num -> {
@@ -89,9 +88,7 @@ public class RemoteClientTest {
         stopWatch.stop();
         log.info(stopWatch.prettyPrint());
         recorder.printResults();
-        assertTrue(recorder.getCountForResultType(BookTicketResult.BOOKING_ERROR)==0);
-        assertTrue(recorder.getCountForResultType(BookTicketResult.TICKET_NOT_AVAILABLE)==59999);
-        assertTrue(recorder.getCountForResultType(BookTicketResult.TICKET_BOOKED)==1);
+        recorder.checkResults();
     }
 
 
@@ -99,13 +96,13 @@ public class RemoteClientTest {
     public void bookParallelWithClientsideEntryProcessor() {
         final Long numberOfCustomers = customerMap.sizeLong();
         StopWatch stopWatch = new StopWatch("How long for "+ numberOfCustomers +" customers to attempt to book a ticket");
-        stopWatch.start("all customers attempt to book one ticket in parallel using an entry procesor");
+        stopWatch.start("all customers attempt to book one ticket in parallel using an entry processor");
         ResultRecorder recorder = new ResultRecorder();
-        List<Future<BookingResult>> futureBookingResults = new ArrayList<>();
         LongStream.rangeClosed(1, numberOfCustomers).forEach(customerKey -> {
             BookingRequest bookingRequest = new BookingRequest(ticketId, customerKey);
-            Callable<BookingResult> bookingTask = () -> new BookTicket(ticketMap).book(bookingRequest);
-            futureBookingResults.add(completionService.submit(bookingTask));
+            completionService.submit(
+                    () -> new BookTicket(ticketMap).book(bookingRequest)
+            );
         });
         LongStream.rangeClosed(1, numberOfCustomers)
                 .forEach(num -> {
@@ -118,9 +115,7 @@ public class RemoteClientTest {
         stopWatch.stop();
         log.info(stopWatch.prettyPrint());
         recorder.printResults();
-        assertTrue(recorder.getCountForResultType(BookTicketResult.BOOKING_ERROR)==0);
-        assertTrue(recorder.getCountForResultType(BookTicketResult.TICKET_NOT_AVAILABLE)==59999);
-        assertTrue(recorder.getCountForResultType(BookTicketResult.TICKET_BOOKED)==1);
+        recorder.checkResults();
     }
 
     /*

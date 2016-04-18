@@ -27,9 +27,9 @@ public class BookTicket {
 
     public BookingResult book(BookingRequest bookingRequest){
         return book(bookingRequest.getTicketId(),bookingRequest.getCustomerId());
-    };
+    }
 
-    public BookingResult book(Long ticketId, Long customerId){
+    private BookingResult book(Long ticketId, Long customerId){
         try {
             return ticketMap.invoke(ticketId, (mutableEntry, objects) -> {
                 Ticket ticket = mutableEntry.getValue();

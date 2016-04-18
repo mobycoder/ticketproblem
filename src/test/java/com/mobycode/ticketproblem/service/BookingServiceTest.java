@@ -12,7 +12,6 @@ import org.springframework.boot.test.SpringApplicationConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.util.StopWatch;
 
-import java.util.*;
 import java.util.concurrent.*;
 import java.util.stream.LongStream;
 
@@ -30,20 +29,20 @@ public class BookingServiceTest {
     @Autowired
     private BookingService bookingService;
 
-    Executor executor;
-    CompletionService<BookingResult> completionService;
+    private Executor executor;
+    private CompletionService<BookingResult> completionService;
 
-    final Long ticketId = 500l;
+    private final Long ticketId = 500L;
 
     @Before
     public void setUp() {
         executor = Executors.newFixedThreadPool(6);
         completionService = new ExecutorCompletionService<>(executor);
-        fillGrid();
+        clearAndFillGrid();
     }
 
 
-    void fillGrid() {
+    private void clearAndFillGrid() {
         ticketMap.clear();
         customerMap.clear();
         StopWatch stopWatch = new StopWatch("Time to fill grid objects");
@@ -53,7 +52,7 @@ public class BookingServiceTest {
         stopWatch.stop();
         //create 60000 customers
         stopWatch.start("time to fill customer map with 60000 customers");
-        LongStream.rangeClosed(1, 60000).parallel().forEach(key -> customerMap.put(key, new Customer(new Long(key))));
+        LongStream.rangeClosed(1, 60000).parallel().forEach(key -> customerMap.put(key, new Customer(key)));
         stopWatch.stop();
         log.debug(stopWatch.prettyPrint());
     }
@@ -75,6 +74,7 @@ public class BookingServiceTest {
         log.info(stopWatch.prettyPrint());
         log.info("Results were: ");
         recorder.printResults();
+        recorder.checkResults();
     }
 
 
@@ -88,11 +88,10 @@ public class BookingServiceTest {
         StopWatch stopWatch = new StopWatch("How long for all customers to attempt to book a ticket");
         stopWatch.start("all customers attempt to book one ticket in parallel");
         ResultRecorder recorder = new ResultRecorder();
-        List<Future<BookingResult>> futureBookingResults = new ArrayList<>();
         customerMap.forEach(entry -> {
-            Callable<BookingResult> bookingTask = () ->
-                    bookingService.book(new BookingRequest(ticketId, entry.getKey()));
-            futureBookingResults.add(completionService.submit(bookingTask));
+            completionService.submit(
+                    () -> bookingService.book(new BookingRequest(ticketId, entry.getKey()))
+            );
         });
         LongStream.rangeClosed(1, numberOfCustomers)
                 .forEach(num -> {
@@ -105,6 +104,7 @@ public class BookingServiceTest {
         stopWatch.stop();
         log.info(stopWatch.prettyPrint());
         recorder.printResults();
+        recorder.checkResults();
     }
 
 }

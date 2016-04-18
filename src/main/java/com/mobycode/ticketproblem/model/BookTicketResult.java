@@ -8,7 +8,7 @@ public enum BookTicketResult implements Serializable {
     TICKET_NOT_AVAILABLE("Ticket not available"),
     BOOKING_ERROR("Error while booking");
 
-    private String label;
+    private final String label;
 
     BookTicketResult(String label) {
         this.label = label;
